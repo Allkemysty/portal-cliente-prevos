@@ -20,13 +20,12 @@ type WorkOrderItem = {
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const token = url.searchParams.get("token")?.trim();
+  const token = new URLSearchParams(window.location.search).get("token");
 
-  if (!token) {
-    return Response.json(
-      { error: "Token de acesso não informado." },
-      { status: 400 },
-    );
+const response = await fetch(
+  `/api/portal?token=${encodeURIComponent(token ?? "")}`,
+  { cache: "no-store" }
+);
   }
 
   let sql: ReturnType<typeof postgres> | undefined;
