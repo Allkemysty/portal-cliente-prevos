@@ -24,9 +24,12 @@ export async function GET(request: Request) {
   try {
     const { env } = getCloudflareContext();
 
-    const hyperdrive = env.HYPERDRIVE_PREVOS_NEON as unknown as
-      | HyperdriveBinding
-      | undefined;
+    // O cast é feito antes de acessar a propriedade, evitando o erro do TypeScript.
+    const hyperdrive = (
+      env as unknown as {
+        HYPERDRIVE_PREVOS_NEON?: HyperdriveBinding;
+      }
+    ).HYPERDRIVE_PREVOS_NEON;
 
     if (!hyperdrive?.connectionString) {
       console.error("Portal: binding Hyperdrive ausente.", {
@@ -209,7 +212,9 @@ export async function GET(request: Request) {
               p.photo_url AS product_photo_url
             FROM work_order_items woi
             INNER JOIN products p ON p.id = woi.product_id
-            WHERE woi.work_order_id = ANY(${sql.array(workOrderIds, "uuid")})
+            WHERE woi.work_order_id = ANY(
+              ${sql.array(workOrderIds, "uuid")}
+            )
             ORDER BY p.name ASC
           `
         : [];
