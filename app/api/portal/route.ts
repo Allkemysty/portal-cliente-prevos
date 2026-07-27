@@ -217,9 +217,10 @@ export async function GET(request: Request) {
     const itemsByWorkOrder = new Map<string, WorkOrderItem[]>();
 
     for (const item of items) {
-      const current = itemsByWorkOrder.get(item.work_order_id) ?? [];
-      current.push(item);
-      itemsByWorkOrder.set(item.work_order_id, current);
+      const currentItems = itemsByWorkOrder.get(item.work_order_id) ?? [];
+
+      currentItems.push(item);
+      itemsByWorkOrder.set(item.work_order_id, currentItems);
     }
 
     return Response.json(
@@ -259,11 +260,15 @@ export async function GET(request: Request) {
 
         ordens: workOrders.map((order) => ({
           id: order.id,
+
+          // Número da OS: compatível com a tela e demais usos
+          numero: order.report_number,
           numero_relatorio: order.report_number,
           report_number: order.report_number,
 
           maquina_id: order.machine_id,
           machine_id: order.machine_id,
+
           maquina: order.machine_id
             ? {
                 id: order.machine_id,
@@ -271,7 +276,9 @@ export async function GET(request: Request) {
                 name: order.machine_name ?? "Equipamento não informado",
               }
             : null,
+
           equipamento: order.machine_name,
+
           machine: order.machine_id
             ? {
                 id: order.machine_id,
