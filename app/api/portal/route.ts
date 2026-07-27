@@ -270,8 +270,13 @@ export async function GET(request: Request) {
         ordens: workOrders.map((order) => ({
           id: order.id,
           numero_relatorio: order.report_number,
+
           maquina_id: order.machine_id,
-          maquina: order.machine_name,
+          maquina: {
+            id: order.machine_id,
+            nome: order.machine_name,
+          },
+
           tecnico: order.technician_name,
           data_servico: order.service_date,
           hora_chegada: order.arrival_time,
@@ -299,6 +304,7 @@ export async function GET(request: Request) {
           status_pdf: order.pdf_status,
           pdf_url: order.pdf_view_url,
           nota_fiscal_url: order.invoice_url,
+
           pecas: (itemsByWorkOrder.get(order.id) ?? []).map((item) => ({
             id: item.id,
             produto_id: item.product_id,
