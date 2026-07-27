@@ -8,8 +8,10 @@
     "start": "next start -H 0.0.0.0 -p 3000"
   },
   "dependencies": {
+    "@opennextjs/cloudflare": "^1.20.1",
     "@tailwindcss/postcss": "4.2.1",
     "next": "16.2.6",
+    "postgres": "^3.4.7",
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "tailwindcss": "4.2.1"
