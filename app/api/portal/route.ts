@@ -8,6 +8,66 @@ type HyperdriveBinding = {
   connectionString: string;
 };
 
+type Customer = {
+  id: string;
+  name: string;
+  tax_id: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  street: string | null;
+  street_number: string | null;
+  address_complement: string | null;
+  city: string | null;
+  state_code: string | null;
+  postal_code: string | null;
+  logo_url: string | null;
+};
+
+type Machine = {
+  id: string;
+  name: string;
+  serial_number: string | null;
+  flow_rate_value: string | number | null;
+  flow_rate_unit: string | null;
+  photo_url: string | null;
+  notes: string | null;
+};
+
+type WorkOrder = {
+  id: string;
+  report_number: string;
+  machine_id: string;
+  machine_name: string;
+  technician_name: string | null;
+  service_date: string | null;
+  arrival_time: string | null;
+  departure_time: string | null;
+  total_km: string | number | null;
+  service_type: string | null;
+  reported_issue: string | null;
+  service_performed: string | null;
+  loaded_hours: string | number | null;
+  unloaded_hours: string | number | null;
+  operating_pressure_1: string | number | null;
+  operating_pressure_2: string | number | null;
+  ambient_temperature: string | number | null;
+  temperature_before: string | number | null;
+  temperature_after: string | number | null;
+  voltage: string | null;
+  intake_air_condition: string | null;
+  air_filter_condition: string | null;
+  compressor_oil: string | null;
+  oil_level: string | null;
+  notes: string | null;
+  responsible_name: string | null;
+  responsible_signature_url: string | null;
+  status: string | null;
+  pdf_status: string | null;
+  pdf_view_url: string | null;
+  invoice_url: string | null;
+};
+
 type WorkOrderItem = {
   id: string;
   work_order_id: string;
@@ -20,12 +80,13 @@ type WorkOrderItem = {
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const token = new URLSearchParams(window.location.search).get("token");
+  const token = url.searchParams.get("token")?.trim();
 
-const response = await fetch(
-  `/api/portal?token=${encodeURIComponent(token ?? "")}`,
-  { cache: "no-store" }
-);
+  if (!token) {
+    return Response.json(
+      { error: "Token de acesso não informado." },
+      { status: 400 },
+    );
   }
 
   let sql: ReturnType<typeof postgres> | undefined;
@@ -50,29 +111,13 @@ const response = await fetch(
       );
     }
 
-    console.log("Portal: consultando cliente.", { token });
-
     sql = postgres(hyperdrive.connectionString, {
       max: 5,
+      prepare: false,
       fetch_types: false,
-      prepare: true,
     });
 
-    const customers = await sql<{
-      id: string;
-      name: string;
-      tax_id: string | null;
-      contact_name: string | null;
-      contact_email: string | null;
-      contact_phone: string | null;
-      street: string | null;
-      street_number: string | null;
-      address_complement: string | null;
-      city: string | null;
-      state_code: string | null;
-      postal_code: string | null;
-      logo_url: string | null;
-    }[]>`
+    const customers = await sql<Customer[]>`
       SELECT
         id,
         name,
@@ -103,15 +148,7 @@ const response = await fetch(
       );
     }
 
-    const machines = await sql<{
-      id: string;
-      name: string;
-      serial_number: string | null;
-      flow_rate_value: string | number | null;
-      flow_rate_unit: string | null;
-      photo_url: string | null;
-      notes: string | null;
-    }[]>`
+    const machines = await sql<Machine[]>`
       SELECT
         id,
         name,
@@ -125,39 +162,7 @@ const response = await fetch(
       ORDER BY name ASC
     `;
 
-    const workOrders = await sql<{
-      id: string;
-      report_number: string;
-      machine_id: string;
-      machine_name: string;
-      technician_name: string | null;
-      service_date: string;
-      arrival_time: string | null;
-      departure_time: string | null;
-      total_km: string | number | null;
-      service_type: string | null;
-      reported_issue: string | null;
-      service_performed: string | null;
-      loaded_hours: string | number | null;
-      unloaded_hours: string | number | null;
-      operating_pressure_1: string | number | null;
-      operating_pressure_2: string | number | null;
-      ambient_temperature: string | number | null;
-      temperature_before: string | number | null;
-      temperature_after: string | number | null;
-      voltage: string | null;
-      intake_air_condition: string | null;
-      air_filter_condition: string | null;
-      compressor_oil: string | null;
-      oil_level: string | null;
-      notes: string | null;
-      responsible_name: string | null;
-      responsible_signature_url: string | null;
-      status: string;
-      pdf_status: string;
-      pdf_view_url: string | null;
-      invoice_url: string | null;
-    }[]>`
+    const workOrders = await sql<WorkOrder[]>`
       SELECT
         wo.id,
         wo.report_number,
@@ -194,30 +199,25 @@ const response = await fetch(
       INNER JOIN machines m ON m.id = wo.machine_id
       LEFT JOIN technicians t ON t.id = wo.technician_id
       WHERE wo.customer_id = ${customer.id}
-      ORDER BY wo.service_date DESC, wo.report_number DESC
+      ORDER BY wo.service_date DESC NULLS LAST, wo.report_number DESC
     `;
 
-    const workOrderIds = workOrders.map((order) => order.id);
-
-    const items: WorkOrderItem[] =
-      workOrderIds.length > 0
-        ? await sql<WorkOrderItem[]>`
-            SELECT
-              woi.id,
-              woi.work_order_id,
-              woi.quantity,
-              woi.notes,
-              p.id AS product_id,
-              p.name AS product_name,
-              p.photo_url AS product_photo_url
-            FROM work_order_items woi
-            INNER JOIN products p ON p.id = woi.product_id
-            WHERE woi.work_order_id = ANY(
-              ${sql.array(workOrderIds, 2950)}
-            )
-            ORDER BY p.name ASC
-          `
-        : [];
+    // Busca somente peças de OS pertencentes a este cliente.
+    const items = await sql<WorkOrderItem[]>`
+      SELECT
+        woi.id,
+        woi.work_order_id,
+        woi.quantity,
+        woi.notes,
+        p.id AS product_id,
+        p.name AS product_name,
+        p.photo_url AS product_photo_url
+      FROM work_order_items woi
+      INNER JOIN products p ON p.id = woi.product_id
+      INNER JOIN work_orders wo ON wo.id = woi.work_order_id
+      WHERE wo.customer_id = ${customer.id}
+      ORDER BY p.name ASC
+    `;
 
     const itemsByWorkOrder = new Map<string, WorkOrderItem[]>();
 
@@ -228,13 +228,6 @@ const response = await fetch(
       currentItems.push(item);
       itemsByWorkOrder.set(item.work_order_id, currentItems);
     }
-
-    console.log("Portal: dados carregados com sucesso.", {
-      customerId: customer.id,
-      machines: machines.length,
-      workOrders: workOrders.length,
-      items: items.length,
-    });
 
     return Response.json(
       {
