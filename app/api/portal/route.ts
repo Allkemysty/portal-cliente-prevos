@@ -8,6 +8,16 @@ type HyperdriveBinding = {
   connectionString: string;
 };
 
+type WorkOrderItem = {
+  id: string;
+  work_order_id: string;
+  quantity: string | number;
+  notes: string | null;
+  product_id: string;
+  product_name: string;
+  product_photo_url: string | null;
+};
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const token = url.searchParams.get("token")?.trim();
@@ -24,7 +34,6 @@ export async function GET(request: Request) {
   try {
     const { env } = getCloudflareContext();
 
-    // O cast é feito antes de acessar a propriedade, evitando o erro do TypeScript.
     const hyperdrive = (
       env as unknown as {
         HYPERDRIVE_PREVOS_NEON?: HyperdriveBinding;
@@ -191,17 +200,9 @@ export async function GET(request: Request) {
 
     const workOrderIds = workOrders.map((order) => order.id);
 
-    const items =
+    const items: WorkOrderItem[] =
       workOrderIds.length > 0
-        ? await sql<{
-            id: string;
-            work_order_id: string;
-            quantity: string | number;
-            notes: string | null;
-            product_id: string;
-            product_name: string;
-            product_photo_url: string | null;
-          }[]>`
+        ? await sql<WorkOrderItem[]>`
             SELECT
               woi.id,
               woi.work_order_id,
@@ -219,10 +220,12 @@ export async function GET(request: Request) {
           `
         : [];
 
-    const itemsByWorkOrder = new Map<string, typeof items>();
+    const itemsByWorkOrder = new Map<string, WorkOrderItem[]>();
 
     for (const item of items) {
-      const currentItems = itemsByWorkOrder.get(item.work_order_id) ?? [];
+      const currentItems =
+        itemsByWorkOrder.get(item.work_order_id) ?? [];
+
       currentItems.push(item);
       itemsByWorkOrder.set(item.work_order_id, currentItems);
     }
