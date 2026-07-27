@@ -10,7 +10,11 @@ export async function GET(request: NextRequest) {
   }
 
   const { env } = getCloudflareContext();
-  const hyperdrive = env.HYPERDRIVE_PREVOS_NEON;
+  type HyperdriveBinding = { connectionString: string };
+
+  const hyperdrive = (env as typeof env & {
+    HYPERDRIVE_PREVOS_NEON: HyperdriveBinding;
+  }).HYPERDRIVE_PREVOS_NEON;
 
   if (!hyperdrive) {
     return NextResponse.json(
