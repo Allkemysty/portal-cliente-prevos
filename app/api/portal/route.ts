@@ -213,7 +213,7 @@ export async function GET(request: Request) {
             FROM work_order_items woi
             INNER JOIN products p ON p.id = woi.product_id
             WHERE woi.work_order_id = ANY(
-              ${sql.array(workOrderIds, "uuid")}
+              ${sql.array(workOrderIds, 2950)}
             )
             ORDER BY p.name ASC
           `
