@@ -37,8 +37,8 @@ type Machine = {
 type WorkOrder = {
   id: string;
   report_number: string;
-  machine_id: string;
-  machine_name: string;
+  machine_id: string | null;
+  machine_name: string | null;
   technician_name: string | null;
   service_date: string | null;
   arrival_time: string | null;
@@ -101,9 +101,7 @@ export async function GET(request: Request) {
     ).HYPERDRIVE_PREVOS_NEON;
 
     if (!hyperdrive?.connectionString) {
-      console.error("Portal: binding Hyperdrive ausente.", {
-        binding: "HYPERDRIVE_PREVOS_NEON",
-      });
+      console.error("Portal: binding Hyperdrive ausente.");
 
       return Response.json(
         { error: "Banco de dados do portal não configurado." },
@@ -140,8 +138,6 @@ export async function GET(request: Request) {
     const customer = customers[0];
 
     if (!customer) {
-      console.warn("Portal: token sem cliente correspondente.", { token });
-
       return Response.json(
         { error: "Cliente não encontrado." },
         { status: 404 },
@@ -196,13 +192,12 @@ export async function GET(request: Request) {
         wo.pdf_view_url,
         wo.invoice_url
       FROM work_orders wo
-      INNER JOIN machines m ON m.id = wo.machine_id
+      LEFT JOIN machines m ON m.id = wo.machine_id
       LEFT JOIN technicians t ON t.id = wo.technician_id
       WHERE wo.customer_id = ${customer.id}
       ORDER BY wo.service_date DESC NULLS LAST, wo.report_number DESC
     `;
 
-    // Busca somente peças de OS pertencentes a este cliente.
     const items = await sql<WorkOrderItem[]>`
       SELECT
         woi.id,
@@ -222,11 +217,9 @@ export async function GET(request: Request) {
     const itemsByWorkOrder = new Map<string, WorkOrderItem[]>();
 
     for (const item of items) {
-      const currentItems =
-        itemsByWorkOrder.get(item.work_order_id) ?? [];
-
-      currentItems.push(item);
-      itemsByWorkOrder.set(item.work_order_id, currentItems);
+      const current = itemsByWorkOrder.get(item.work_order_id) ?? [];
+      current.push(item);
+      itemsByWorkOrder.set(item.work_order_id, current);
     }
 
     return Response.json(
@@ -234,6 +227,7 @@ export async function GET(request: Request) {
         cliente: {
           id: customer.id,
           nome: customer.name,
+          name: customer.name,
           cnpj: customer.tax_id,
           contato: customer.contact_name,
           email: customer.contact_email,
@@ -252,9 +246,13 @@ export async function GET(request: Request) {
         maquinas: machines.map((machine) => ({
           id: machine.id,
           nome: machine.name,
+          name: machine.name,
           numero_serie: machine.serial_number,
+          serial_number: machine.serial_number,
           vazao: machine.flow_rate_value,
+          flow_rate_value: machine.flow_rate_value,
           unidade_vazao: machine.flow_rate_unit,
+          flow_rate_unit: machine.flow_rate_unit,
           foto_url: machine.photo_url,
           observacoes: machine.notes,
         })),
@@ -262,15 +260,33 @@ export async function GET(request: Request) {
         ordens: workOrders.map((order) => ({
           id: order.id,
           numero_relatorio: order.report_number,
+          report_number: order.report_number,
 
           maquina_id: order.machine_id,
-          maquina: {
-            id: order.machine_id,
-            nome: order.machine_name,
-          },
+          machine_id: order.machine_id,
+          maquina: order.machine_id
+            ? {
+                id: order.machine_id,
+                nome: order.machine_name ?? "Equipamento não informado",
+                name: order.machine_name ?? "Equipamento não informado",
+              }
+            : null,
+          equipamento: order.machine_name,
+          machine: order.machine_id
+            ? {
+                id: order.machine_id,
+                nome: order.machine_name ?? "Equipamento não informado",
+                name: order.machine_name ?? "Equipamento não informado",
+              }
+            : null,
 
           tecnico: order.technician_name,
+          technician: order.technician_name,
+
           data_servico: order.service_date,
+          data: order.service_date,
+          service_date: order.service_date,
+
           hora_chegada: order.arrival_time,
           hora_saida: order.departure_time,
           km_total: order.total_km,
@@ -319,7 +335,6 @@ export async function GET(request: Request) {
     console.error("Portal: erro ao carregar dados.", {
       token,
       message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
     });
 
     return Response.json(
